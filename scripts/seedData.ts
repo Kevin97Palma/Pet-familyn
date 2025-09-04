@@ -54,6 +54,11 @@ const families = [
     id: "family2", 
     name: "Familia García-López",
     description: "Cuidamos a nuestros amigos peludos con mucho amor"
+  },
+  {
+    id: "family3",
+    name: "Familia Rodríguez (Extensión)",
+    description: "Segunda familia de María - Casa de la abuela"
   }
 ];
 
@@ -61,7 +66,9 @@ const familyMembers = [
   { familyId: "family1", userId: "user1", role: "admin" },
   { familyId: "family1", userId: "user2", role: "member" },
   { familyId: "family2", userId: "user3", role: "admin" },
-  { familyId: "family2", userId: "user4", role: "member" }
+  { familyId: "family2", userId: "user4", role: "member" },
+  // María pertenece a una segunda familia (casa de la abuela)
+  { familyId: "family3", userId: "user1", role: "admin" }
 ];
 
 const pets = [
@@ -222,6 +229,33 @@ const pets = [
     microchipId: "900123456789023",
     color: "Seal point",
     profileImageUrl: null
+  },
+  // Familia 3 - Mascotas de la casa de la abuela de María
+  {
+    id: "pet13",
+    familyId: "family3",
+    name: "Canela",
+    species: "Perro",
+    breed: "Cocker Spaniel",
+    birthDate: new Date("2017-04-12"),
+    gender: "Hembra",
+    weight: 13.2,
+    microchip: "900123456789024",
+    color: "Canela",
+    profileImageUrl: "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=400&h=400&fit=crop&auto=format"
+  },
+  {
+    id: "pet14",
+    familyId: "family3", 
+    name: "Manchitas",
+    species: "Gato",
+    breed: "Común Europeo",
+    birthDate: new Date("2019-11-28"),
+    gender: "Macho",
+    weight: 5.8,
+    microchip: "900123456789025",
+    color: "Atigrado con blanco",
+    profileImageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop&auto=format"
   }
 ];
 

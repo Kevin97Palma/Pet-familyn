@@ -266,6 +266,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Leave family (remove self)
+  app.delete("/api/families/:familyId/members/me", hybridAuth, async (req: any, res) => {
+    try {
+      const { familyId } = req.params;
+      const userId = req.currentUser.id;
+      
+      // Check if user is a member of the family
+      const userMemberships = await storage.getUserFamilies(userId);
+      const membership = userMemberships.find((m: any) => m.family.id === familyId);
+      
+      if (!membership) {
+        return res.status(404).json({ error: "You are not a member of this family" });
+      }
+      
+      // Prevent admin from leaving if there are other members
+      const familyMembers = await storage.getFamilyMembers(familyId);
+      if (membership.role === "admin" && familyMembers.length > 1) {
+        return res.status(400).json({ error: "Admin cannot leave family with other members. Transfer admin role first." });
+      }
+      
+      // Remove user from family
+      await storage.removeFamilyMember(familyId, userId);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Error leaving family:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // QR Code generation
   app.get("/api/families/:id/qr", hybridAuth, async (req: any, res) => {
     try {

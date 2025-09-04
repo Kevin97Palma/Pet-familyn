@@ -94,6 +94,46 @@ export default function FamilyManagement() {
     },
   });
 
+  // Leave family mutation
+  const leaveFamilyMutation = useMutation({
+    mutationFn: async (familyId: string) => {
+      const response = await apiRequest("DELETE", `/api/families/${familyId}/members/me`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+      // If we left the currently selected family, reset selection
+      const remainingFamilies = families.filter((f: any) => f.family.id !== selectedFamily);
+      if (remainingFamilies.length > 0) {
+        setSelectedFamily(remainingFamilies[0].family.id);
+      } else {
+        setSelectedFamily("");
+      }
+      toast({
+        title: "Éxito",
+        description: "Has salido de la familia correctamente",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized", 
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "No se pudo salir de la familia",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (authLoading || familiesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -132,23 +172,72 @@ export default function FamilyManagement() {
           </p>
         </div>
 
-        {/* Family Selector */}
-        {families.length > 1 && (
-          <div className="mb-6">
-            <select 
-              value={selectedFamily}
-              onChange={(e) => setSelectedFamily(e.target.value)}
-              className="px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring"
-              data-testid="select-family"
-            >
-              {families.map((fm: any) => (
-                <option key={fm.family.id} value={fm.family.id}>
-                  {fm.family.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* All Families Overview */}
+        <div className="mb-8">
+          <Card className="border-border shadow-sm">
+            <div className="p-6 border-b border-border">
+              <h3 className="text-xl font-semibold text-foreground">Todas Mis Familias</h3>
+              <p className="text-sm text-muted-foreground">Puedes pertenecer a múltiples familias</p>
+            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {families.map((familyMember: any) => {
+                  const family = familyMember.family;
+                  const isSelected = family.id === selectedFamily;
+                  return (
+                    <div 
+                      key={family.id} 
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        isSelected 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setSelectedFamily(family.id)}
+                      data-testid={`family-card-${family.id}`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-foreground">{family.name}</h4>
+                          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                            familyMember.role === 'admin' 
+                              ? 'bg-primary/10 text-primary' 
+                              : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {familyMember.role === 'admin' ? 'Admin' : 'Miembro'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {family.description || 'Sin descripción'}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {family.members?.length || 0} miembros
+                          </span>
+                          {families.length > 1 && familyMember.role !== 'admin' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                leaveFamilyMutation.mutate(family.id);
+                              }}
+                              disabled={leaveFamilyMutation.isPending}
+                              data-testid={`button-leave-${family.id}`}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <i className="fas fa-sign-out-alt mr-1"></i>
+                              Salir
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Current Family */}
