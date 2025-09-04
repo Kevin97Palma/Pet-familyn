@@ -46,7 +46,19 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
       const response = await apiRequest("POST", "/api/pets", petData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (createdPet) => {
+      // If there's an image, associate it with the pet
+      if (formData.profileImageUrl) {
+        try {
+          await apiRequest("PUT", `/api/pets/${createdPet.id}/image`, {
+            imageURL: formData.profileImageUrl,
+          });
+        } catch (error) {
+          console.error("Error associating image:", error);
+          // Don't fail the whole process if image association fails
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/families", familyId, "pets"] });
       toast({
         title: "Éxito",
@@ -87,8 +99,10 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
     }
 
     try {
+      // Remove profileImageUrl from pet creation data - it will be handled separately
+      const { profileImageUrl, ...petFormData } = formData;
       const petData = insertPetSchema.parse({
-        ...formData,
+        ...petFormData,
         familyId,
         birthDate: formData.birthDate ? new Date(formData.birthDate) : undefined,
       });
@@ -143,7 +157,7 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
       const uploadedFile = result.successful[0];
       const imageUrl = uploadedFile.uploadURL;
       
-      // Update profile image URL in form data
+      // Store the raw upload URL for later processing
       updateField("profileImageUrl", imageUrl);
       
       toast({

@@ -84,7 +84,7 @@ const pets = [
     weight: "25.5",
     microchip: "900123456789012",
     color: "Dorado",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet2",
@@ -97,7 +97,7 @@ const pets = [
     weight: 30.2,
     microchipId: "900123456789013",
     color: "Chocolate",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1551717743-49959800b1f6?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet3",
@@ -110,7 +110,7 @@ const pets = [
     weight: 4.8,
     microchipId: "900123456789014",
     color: "Blanco",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1513245543132-31f507417b26?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet4", 
@@ -123,7 +123,7 @@ const pets = [
     weight: 35.7,
     microchipId: "900123456789015", 
     color: "Negro y marrón",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1589941013453-ec89f33b5e95?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet5",
@@ -136,7 +136,7 @@ const pets = [
     weight: 3.9,
     microchipId: "900123456789016",
     color: "Crema y chocolate",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet6",
@@ -149,7 +149,7 @@ const pets = [
     weight: 15.3,
     microchipId: "900123456789017",
     color: "Tricolor",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1544356269-f08e58f4e2d3?w=400&h=400&fit=crop&auto=format"
   },
   // Familia 2 - 6 mascotas
   {
@@ -163,7 +163,7 @@ const pets = [
     weight: 8.7,
     microchipId: "900123456789018",
     color: "Blanco",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1616190264687-b7d7c1516da4?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet8",
@@ -176,7 +176,7 @@ const pets = [
     weight: 7.2,
     microchipId: "900123456789019",
     color: "Naranja",
-    profileImageUrl: null
+    profileImageUrl: "https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=400&h=400&fit=crop&auto=format"
   },
   {
     id: "pet9",
