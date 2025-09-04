@@ -15,26 +15,169 @@ import {
   insertVaccinationSchema,
 } from "@shared/schema";
 import QRCode from 'qrcode';
+import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Utility functions for password hashing
+  async function hashPassword(password: string) {
+    const salt = randomBytes(16).toString("hex");
+    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+    return `${buf.toString("hex")}.${salt}`;
+  }
+
+  async function comparePasswords(supplied: string, stored: string) {
+    const [hashed, salt] = stored.split(".");
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    return timingSafeEqual(hashedBuf, suppliedBuf);
+  }
+
+  // Local auth routes
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      const { email, password, firstName, lastName } = req.body;
+      
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).send("Todos los campos son requeridos");
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).send("El email ya está registrado");
+      }
+
+      // Hash password and create user
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createLocalUser({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName
+      });
+
+      // Log user in by setting session
+      req.session.userId = user.id;
+      res.status(201).json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).send("Error al crear la cuenta");
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).send("Email y contraseña son requeridos");
+      }
+
+      // Find user and verify password
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password) {
+        return res.status(401).send("Credenciales inválidas");
+      }
+
+      const isValidPassword = await comparePasswords(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).send("Credenciales inválidas");
+      }
+
+      // Log user in by setting session
+      req.session.userId = user.id;
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).send("Error al iniciar sesión");
+    }
+  });
+
+  app.post('/api/auth/logout', async (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).send("Error al cerrar sesión");
+      }
+      res.json({ message: "Sesión cerrada" });
+    });
+  });
+
+  // Auth routes (hybrid - works with both Replit Auth and local auth)
+  app.get('/api/auth/user', async (req: any, res) => {
+    try {
+      let user = null;
+      
+      // Check for Replit Auth user
+      if (req.user && req.user.claims) {
+        const userId = req.user.claims.sub;
+        user = await storage.getUser(userId);
+      }
+      // Check for local auth user
+      else if (req.session.userId) {
+        user = await storage.getUser(req.session.userId);
+      }
+
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
+  // Middleware for hybrid authentication
+  const hybridAuth = async (req: any, res: any, next: any) => {
+    let user = null;
+    
+    // Check for Replit Auth user
+    if (req.user && req.user.claims) {
+      const userId = req.user.claims.sub;
+      user = await storage.getUser(userId);
+    }
+    // Check for local auth user
+    else if (req.session.userId) {
+      user = await storage.getUser(req.session.userId);
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    req.currentUser = user;
+    next();
+  };
+
   // Object storage routes for serving files
-  app.get("/objects/:objectPath(*)", isAuthenticated, async (req, res) => {
-    const userId = req.user?.claims?.sub;
+  app.get("/objects/:objectPath(*)", hybridAuth, async (req: any, res) => {
+    const userId = req.currentUser?.id;
     const objectStorageService = new ObjectStorageService();
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(
@@ -59,16 +202,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // File upload endpoint
-  app.post("/api/objects/upload", isAuthenticated, async (req, res) => {
+  app.post("/api/objects/upload", hybridAuth, async (req: any, res) => {
     const objectStorageService = new ObjectStorageService();
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     res.json({ uploadURL });
   });
 
   // Family routes
-  app.post("/api/families", isAuthenticated, async (req, res) => {
+  app.post("/api/families", hybridAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.currentUser?.id;
       const familyData = insertFamilySchema.parse(req.body);
       const family = await storage.createFamily(familyData, userId);
       res.status(201).json(family);
@@ -78,9 +221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families", isAuthenticated, async (req, res) => {
+  app.get("/api/families", hybridAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.currentUser?.id;
       const families = await storage.getUserFamilies(userId);
       res.json(families);
     } catch (error) {
@@ -89,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:id", hybridAuth, async (req: any, res) => {
     try {
       const family = await storage.getFamilyWithMembers(req.params.id);
       if (!family) {
@@ -102,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/families/:id/members", isAuthenticated, async (req, res) => {
+  app.post("/api/families/:id/members", hybridAuth, async (req: any, res) => {
     try {
       const { userId, role = 'member' } = req.body;
       const member = await storage.addFamilyMember(req.params.id, userId, role);
@@ -113,7 +256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/families/:familyId/members/:userId", isAuthenticated, async (req, res) => {
+  app.delete("/api/families/:familyId/members/:userId", hybridAuth, async (req: any, res) => {
     try {
       await storage.removeFamilyMember(req.params.familyId, req.params.userId);
       res.status(204).send();
@@ -124,7 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // QR Code generation
-  app.get("/api/families/:id/qr", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:id/qr", hybridAuth, async (req: any, res) => {
     try {
       const familyId = req.params.id;
       const family = await storage.getFamily(familyId);
@@ -149,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Pet routes
-  app.post("/api/pets", isAuthenticated, async (req, res) => {
+  app.post("/api/pets", hybridAuth, async (req: any, res) => {
     try {
       const petData = insertPetSchema.parse(req.body);
       const pet = await storage.createPet(petData);
@@ -160,7 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families/:familyId/pets", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:familyId/pets", hybridAuth, async (req: any, res) => {
     try {
       const pets = await storage.getFamilyPets(req.params.familyId);
       res.json(pets);
@@ -170,7 +313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/pets/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/pets/:id", hybridAuth, async (req: any, res) => {
     try {
       const pet = await storage.getPet(req.params.id);
       if (!pet) {
@@ -183,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/pets/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/pets/:id", hybridAuth, async (req: any, res) => {
     try {
       const updates = insertPetSchema.partial().parse(req.body);
       const pet = await storage.updatePet(req.params.id, updates);
@@ -194,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/pets/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/pets/:id", hybridAuth, async (req: any, res) => {
     try {
       await storage.deletePet(req.params.id);
       res.status(204).send();
@@ -205,12 +348,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Pet image upload
-  app.put("/api/pets/:id/image", isAuthenticated, async (req, res) => {
+  app.put("/api/pets/:id/image", hybridAuth, async (req: any, res) => {
     if (!req.body.imageURL) {
       return res.status(400).json({ error: "imageURL is required" });
     }
 
-    const userId = req.user?.claims?.sub;
+    const userId = req.currentUser?.id;
 
     try {
       const objectStorageService = new ObjectStorageService();
@@ -234,9 +377,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Notes routes
-  app.post("/api/notes", isAuthenticated, async (req, res) => {
+  app.post("/api/notes", hybridAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.currentUser?.id;
       const noteData = insertNoteSchema.parse({
         ...req.body,
         authorId: userId,
@@ -249,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/pets/:petId/notes", isAuthenticated, async (req, res) => {
+  app.get("/api/pets/:petId/notes", hybridAuth, async (req: any, res) => {
     try {
       const notes = await storage.getPetNotes(req.params.petId);
       res.json(notes);
@@ -259,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families/:familyId/notes", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:familyId/notes", hybridAuth, async (req: any, res) => {
     try {
       const notes = await storage.getFamilyNotes(req.params.familyId);
       res.json(notes);
@@ -269,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families/:familyId/notes/recent", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:familyId/notes/recent", hybridAuth, async (req: any, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const notes = await storage.getRecentNotes(req.params.familyId, limit);
@@ -280,7 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/notes/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/notes/:id", hybridAuth, async (req: any, res) => {
     try {
       const updates = insertNoteSchema.partial().parse(req.body);
       const note = await storage.updateNote(req.params.id, updates);
@@ -291,7 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/notes/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/notes/:id", hybridAuth, async (req: any, res) => {
     try {
       await storage.deleteNote(req.params.id);
       res.status(204).send();
@@ -302,9 +445,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Pet files routes
-  app.post("/api/pet-files", isAuthenticated, async (req, res) => {
+  app.post("/api/pet-files", hybridAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.currentUser?.id;
       const fileData = insertPetFileSchema.parse({
         ...req.body,
         uploaderId: userId,
@@ -317,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/pets/:petId/files", isAuthenticated, async (req, res) => {
+  app.get("/api/pets/:petId/files", hybridAuth, async (req: any, res) => {
     try {
       const files = await storage.getPetFiles(req.params.petId);
       res.json(files);
@@ -327,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/pet-files/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/pet-files/:id", hybridAuth, async (req: any, res) => {
     try {
       await storage.deletePetFile(req.params.id);
       res.status(204).send();
@@ -338,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Vaccination routes
-  app.post("/api/vaccinations", isAuthenticated, async (req, res) => {
+  app.post("/api/vaccinations", hybridAuth, async (req: any, res) => {
     try {
       const vaccinationData = insertVaccinationSchema.parse(req.body);
       const vaccination = await storage.createVaccination(vaccinationData);
@@ -349,7 +492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/pets/:petId/vaccinations", isAuthenticated, async (req, res) => {
+  app.get("/api/pets/:petId/vaccinations", hybridAuth, async (req: any, res) => {
     try {
       const vaccinations = await storage.getPetVaccinations(req.params.petId);
       res.json(vaccinations);
@@ -359,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/families/:familyId/vaccinations/upcoming", isAuthenticated, async (req, res) => {
+  app.get("/api/families/:familyId/vaccinations/upcoming", hybridAuth, async (req: any, res) => {
     try {
       const vaccinations = await storage.getUpcomingVaccinations(req.params.familyId);
       res.json(vaccinations);
@@ -369,7 +512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/vaccinations/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/vaccinations/:id", hybridAuth, async (req: any, res) => {
     try {
       const updates = insertVaccinationSchema.partial().parse(req.body);
       const vaccination = await storage.updateVaccination(req.params.id, updates);
@@ -380,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/vaccinations/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/vaccinations/:id", hybridAuth, async (req: any, res) => {
     try {
       await storage.deleteVaccination(req.params.id);
       res.status(204).send();
