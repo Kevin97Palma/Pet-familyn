@@ -148,6 +148,21 @@ export default function PetProfile() {
 
             <div className="flex space-x-2">
               <Button
+                variant="outline"
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/share/pet/${petId}`;
+                  navigator.clipboard.writeText(shareUrl).then(() => {
+                    toast({
+                      title: "¡Enlace copiado!",
+                      description: "El enlace para compartir se ha copiado al portapapeles",
+                    });
+                  });
+                }}
+                data-testid="button-share-pet"
+              >
+                <i className="fas fa-share mr-2"></i>Compartir
+              </Button>
+              <Button
                 onClick={() => setShowAddNote(true)}
                 className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
                 data-testid="button-add-note"
@@ -460,37 +475,151 @@ export default function PetProfile() {
 
             {/* Files Tab */}
             <TabsContent value="files" className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {files.length === 0 ? (
-                  <div className="text-center py-8">
-                    <i className="fas fa-file text-4xl text-muted-foreground mb-4"></i>
-                    <p className="text-muted-foreground">No hay archivos subidos</p>
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 mx-auto mb-6 bg-muted rounded-full flex items-center justify-center">
+                      <i className="fas fa-images text-3xl text-muted-foreground"></i>
+                    </div>
+                    <h3 className="text-lg font-medium text-foreground mb-2">No hay fotos aún</h3>
+                    <p className="text-muted-foreground mb-6">Comienza subiendo algunas fotos de {pet.name}</p>
+                    <ObjectUploader
+                      onGetUploadParameters={async () => {
+                        const response = await apiRequest("POST", "/api/objects/upload");
+                        const { uploadURL } = await response.json();
+                        return { method: "PUT" as const, url: uploadURL };
+                      }}
+                      onComplete={(result) => {
+                        if (result.successful && result.successful.length > 0) {
+                          const uploadURL = result.successful[0].uploadURL;
+                          // Add file to pet files
+                          // Implementation would go here
+                        }
+                      }}
+                      buttonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <i className="fas fa-camera mr-2"></i>
+                      Subir Primera Foto
+                    </ObjectUploader>
                   </div>
                 ) : (
-                  files.map((file: PetFile) => (
-                    <Card key={file.id} className="border-border">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h4 className="font-semibold text-foreground">{file.fileName}</h4>
-                            <p className="text-sm text-muted-foreground">{file.category}</p>
-                            {file.description && (
-                              <p className="text-xs text-muted-foreground mt-1">{file.description}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-muted-foreground">
-                              {file.fileSize && `${Math.round(file.fileSize / 1024)} KB`}
-                            </span>
-                            <Button variant="outline" size="sm">
-                              <i className="fas fa-download mr-2"></i>
-                              Descargar
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                  <>
+                    {/* Photo Gallery */}
+                    {(() => {
+                      const imageFiles = files.filter((file: PetFile) => 
+                        file.fileType?.includes('image') || 
+                        file.fileName?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                      );
+                      const otherFiles = files.filter((file: PetFile) => 
+                        !file.fileType?.includes('image') && 
+                        !file.fileName?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                      );
+
+                      return (
+                        <>
+                          {imageFiles.length > 0 && (
+                            <div className="mb-8">
+                              <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold text-foreground">
+                                  <i className="fas fa-images mr-2"></i>
+                                  Galería de Fotos ({imageFiles.length})
+                                </h3>
+                                <ObjectUploader
+                                  onGetUploadParameters={async () => {
+                                    const response = await apiRequest("POST", "/api/objects/upload");
+                                    const { uploadURL } = await response.json();
+                                    return { method: "PUT" as const, url: uploadURL };
+                                  }}
+                                  onComplete={(result) => {
+                                    if (result.successful && result.successful.length > 0) {
+                                      const uploadURL = result.successful[0].uploadURL;
+                                      // Add file to pet files - implementation would go here
+                                      queryClient.invalidateQueries({ queryKey: ["/api/pets", petId, "files"] });
+                                    }
+                                  }}
+                                  buttonClassName="text-sm"
+                                >
+                                  <i className="fas fa-plus mr-1"></i>
+                                  Agregar Foto
+                                </ObjectUploader>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {imageFiles.map((file: PetFile) => (
+                                  <div
+                                    key={file.id}
+                                    className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted cursor-pointer hover:shadow-lg transition-all duration-200"
+                                    onClick={() => {
+                                      // Open image in modal/lightbox
+                                      window.open(file.filePath, '_blank');
+                                    }}
+                                  >
+                                    <img
+                                      src={file.filePath}
+                                      alt={file.description || file.fileName}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="bg-white/90 backdrop-blur-sm rounded-full p-2">
+                                        <i className="fas fa-expand-alt text-xs text-gray-700"></i>
+                                      </div>
+                                    </div>
+                                    {file.description && (
+                                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <p className="text-xs truncate">{file.description}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Other Files */}
+                          {otherFiles.length > 0 && (
+                            <div>
+                              <h3 className="text-lg font-semibold text-foreground mb-4">
+                                <i className="fas fa-file mr-2"></i>
+                                Documentos ({otherFiles.length})
+                              </h3>
+                              <div className="space-y-3">
+                                {otherFiles.map((file: PetFile) => (
+                                  <Card key={file.id} className="border-border hover:shadow-md transition-shadow">
+                                    <CardContent className="p-4">
+                                      <div className="flex justify-between items-center">
+                                        <div className="flex items-center space-x-3">
+                                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-file-alt text-primary"></i>
+                                          </div>
+                                          <div>
+                                            <h4 className="font-medium text-foreground">{file.fileName}</h4>
+                                            <p className="text-sm text-muted-foreground">{file.category}</p>
+                                            {file.description && (
+                                              <p className="text-xs text-muted-foreground mt-1">{file.description}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-xs text-muted-foreground">
+                                            {file.fileSize && `${Math.round(file.fileSize / 1024)} KB`}
+                                          </span>
+                                          <Button variant="outline" size="sm">
+                                            <i className="fas fa-download mr-2"></i>
+                                            Ver
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             </TabsContent>

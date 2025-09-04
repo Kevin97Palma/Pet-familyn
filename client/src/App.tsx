@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import PetProfile from "@/pages/PetProfile";
 import FamilyManagement from "@/pages/FamilyManagement";
 import NotesManager from "@/pages/NotesManager";
+import PublicPetProfile from "@/pages/PublicPetProfile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/share/pet/:id" component={PublicPetProfile} />
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (

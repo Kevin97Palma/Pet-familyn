@@ -480,6 +480,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public pet profile route (no auth required for sharing)
+  app.get("/public/pet/:id", async (req, res) => {
+    try {
+      const petId = req.params.id;
+      const pet = await storage.getPet(petId);
+      
+      if (!pet) {
+        return res.status(404).json({ message: "Pet not found" });
+      }
+
+      // Get pet files (photos)
+      const files = await storage.getPetFiles(petId);
+      
+      // Get recent notes (limit to 5 for public view)
+      const notes = await storage.getPetNotes(petId);
+      const recentNotes = notes.slice(0, 5);
+
+      // Get vaccinations
+      const vaccinations = await storage.getPetVaccinations(petId);
+
+      res.json({
+        pet,
+        files,
+        notes: recentNotes,
+        vaccinations
+      });
+    } catch (error) {
+      console.error("Error fetching public pet profile:", error);
+      res.status(500).json({ message: "Failed to fetch pet profile" });
+    }
+  });
+
   // Vaccination routes
   app.post("/api/vaccinations", hybridAuth, async (req: any, res) => {
     try {
