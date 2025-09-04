@@ -12,13 +12,8 @@ interface Pet {
   breed?: string;
   gender: string;
   birthDate?: string;
-  weight?: number;
-  color?: string;
-  microchipId?: string;
   profileImageUrl?: string;
-  medicalConditions?: string[];
-  allergies?: string[];
-  specialCare?: string;
+  description?: string;
 }
 
 interface PetFile {
@@ -53,8 +48,6 @@ interface Vaccination {
 interface PublicPetData {
   pet: Pet;
   files: PetFile[];
-  notes: Note[];
-  vaccinations: Vaccination[];
 }
 
 export default function PublicPetProfile() {
@@ -134,7 +127,7 @@ export default function PublicPetProfile() {
     );
   }
 
-  const { pet, files, notes, vaccinations } = petData;
+  const { pet, files } = petData;
   const photoFiles = files.filter(file => file.filePath.includes('image') || file.fileName.match(/\.(jpg|jpeg|png|gif)$/i));
 
   return (
@@ -188,68 +181,38 @@ export default function PublicPetProfile() {
                   {pet.breed ? `${pet.breed} • ` : ''}{pet.species}
                 </CardDescription>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Género</p>
-                    <p className="font-medium">
-                      <i className={`fas ${pet.gender === 'male' ? 'fa-mars text-blue-500' : 'fa-venus text-pink-500'} mr-2`}></i>
+                <div className="text-center lg:text-left">
+                  <div className="flex items-center justify-center lg:justify-start gap-2 mb-2">
+                    <Badge variant="secondary" className="text-sm">
+                      <i className={`fas ${pet.gender === 'male' ? 'fa-mars text-blue-500' : 'fa-venus text-pink-500'} mr-1`}></i>
                       {pet.gender === 'male' ? 'Macho' : 'Hembra'}
-                    </p>
-                  </div>
-                  {pet.birthDate && (
-                    <div>
-                      <p className="text-sm text-gray-600">Edad</p>
-                      <p className="font-medium">
-                        <i className="fas fa-birthday-cake text-yellow-500 mr-2"></i>
+                    </Badge>
+                    {pet.birthDate && (
+                      <Badge variant="outline" className="text-sm">
+                        <i className="fas fa-birthday-cake text-yellow-500 mr-1"></i>
                         {calculateAge(pet.birthDate)}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Description */}
+                  {pet.description && (
+                    <div className="mt-4">
+                      <p className="text-gray-700 leading-relaxed">
+                        {pet.description}
                       </p>
                     </div>
                   )}
-                  {pet.weight && (
-                    <div>
-                      <p className="text-sm text-gray-600">Peso</p>
-                      <p className="font-medium">
-                        <i className="fas fa-weight text-green-500 mr-2"></i>
-                        {pet.weight} kg
-                      </p>
-                    </div>
-                  )}
-                  {pet.color && (
-                    <div>
-                      <p className="text-sm text-gray-600">Color</p>
-                      <p className="font-medium">
-                        <i className="fas fa-palette text-purple-500 mr-2"></i>
-                        {pet.color}
+                  
+                  {!pet.description && (
+                    <div className="mt-4">
+                      <p className="text-gray-500 italic">
+                        ¡Hola! Soy {pet.name}, una {pet.species.toLowerCase()}{pet.breed ? ` ${pet.breed.toLowerCase()}` : ''}.
+                        ¡Me encanta conocer nuevos amigos! 🐾
                       </p>
                     </div>
                   )}
                 </div>
-
-                {pet.medicalConditions && pet.medicalConditions.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-600 mb-2">Condiciones Médicas</p>
-                    <div className="flex flex-wrap gap-2">
-                      {pet.medicalConditions.map((condition, index) => (
-                        <Badge key={index} variant="secondary">
-                          {condition}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {pet.allergies && pet.allergies.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2">Alergias</p>
-                    <div className="flex flex-wrap gap-2">
-                      {pet.allergies.map((allergy, index) => (
-                        <Badge key={index} variant="destructive">
-                          {allergy}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </CardHeader>
@@ -287,83 +250,20 @@ export default function PublicPetProfile() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Notes */}
-          {notes.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <i className="fas fa-sticky-note mr-2"></i>
-                  Notas Recientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {notes.map((note) => (
-                  <div key={note.id} className="border-l-4 border-blue-500 pl-4 py-2">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-medium">{note.title}</h4>
-                      <Badge variant={note.type === 'veterinary' ? 'default' : 'secondary'}>
-                        {note.type === 'veterinary' ? 'Veterinaria' : 'Diaria'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{note.content}</p>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Por: {note.author.firstName} {note.author.lastName}</span>
-                      <span>{formatDate(note.date)}</span>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Vaccinations */}
-          {vaccinations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <i className="fas fa-syringe mr-2"></i>
-                  Vacunas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {vaccinations.slice(0, 5).map((vaccination) => (
-                  <div key={vaccination.id} className="border rounded-lg p-3 bg-green-50">
-                    <h4 className="font-medium text-green-800">{vaccination.vaccineName}</h4>
-                    <p className="text-sm text-green-600">
-                      Administrada: {formatDate(vaccination.administrationDate)}
-                    </p>
-                    {vaccination.nextDueDate && (
-                      <p className="text-sm text-green-600">
-                        Próxima: {formatDate(vaccination.nextDueDate)}
-                      </p>
-                    )}
-                    {vaccination.veterinarianName && (
-                      <p className="text-xs text-green-500 mt-1">
-                        Dr. {vaccination.veterinarianName}
-                        {vaccination.clinicName && ` - ${vaccination.clinicName}`}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {pet.specialCare && (
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle>
-                <i className="fas fa-heart-pulse mr-2"></i>
-                Cuidados Especiales
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700">{pet.specialCare}</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Footer message */}
+        <Card className="mt-8 bg-gradient-to-r from-blue-50 to-purple-50 border-0">
+          <CardContent className="text-center py-8">
+            <div className="max-w-md mx-auto">
+              <i className="fas fa-paw text-4xl text-blue-500 mb-4"></i>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                ¡Gracias por conocer a {pet.name}!
+              </h3>
+              <p className="text-gray-600">
+                Este perfil fue compartido con amor desde Pet-Family 💙
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Image Modal */}

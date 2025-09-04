@@ -81,10 +81,13 @@ export const notes = pgTable("notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   petId: varchar("pet_id").notNull().references(() => pets.id, { onDelete: 'cascade' }),
   authorId: varchar("author_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  type: varchar("type").notNull(), // 'daily', 'veterinary'
+  type: varchar("type").notNull(), // 'daily', 'veterinary', 'task'
   title: varchar("title").notNull(),
   content: text("content").notNull(),
   date: timestamp("date").notNull(),
+  dueDate: timestamp("due_date"), // fecha de cumplimiento para tareas
+  frequency: varchar("frequency"), // 'daily', 'weekly', 'monthly', 'yearly', 'once'
+  completed: boolean("completed").default(false), // para tareas
   vetName: varchar("vet_name"), // for veterinary notes
   vetClinic: varchar("vet_clinic"), // for veterinary notes
   medications: text("medications"), // for veterinary notes

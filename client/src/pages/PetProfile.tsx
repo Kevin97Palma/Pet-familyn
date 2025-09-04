@@ -10,6 +10,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import AddNoteModal from "@/components/AddNoteModal";
+import SharePetModal from "@/components/SharePetModal";
 import type { Pet, Note, Vaccination, PetFile } from "@shared/schema";
 
 export default function PetProfile() {
@@ -18,6 +19,7 @@ export default function PetProfile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAddNote, setShowAddNote] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const petId = params?.id;
 
@@ -149,15 +151,7 @@ export default function PetProfile() {
             <div className="flex space-x-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  const shareUrl = `${window.location.origin}/share/pet/${petId}`;
-                  navigator.clipboard.writeText(shareUrl).then(() => {
-                    toast({
-                      title: "¡Enlace copiado!",
-                      description: "El enlace para compartir se ha copiado al portapapeles",
-                    });
-                  });
-                }}
+                onClick={() => setShowShareModal(true)}
                 data-testid="button-share-pet"
               >
                 <i className="fas fa-share mr-2"></i>Compartir
@@ -632,6 +626,14 @@ export default function PetProfile() {
         isOpen={showAddNote}
         onClose={() => setShowAddNote(false)}
         petId={petId}
+      />
+      
+      {/* Share Pet Modal */}
+      <SharePetModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        petId={petId || ''}
+        petName={pet?.name || ''}
       />
     </div>
   );

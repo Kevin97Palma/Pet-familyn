@@ -25,10 +25,12 @@ export default function AddNoteModal({ isOpen, onClose, petId, familyId }: AddNo
   
   const [formData, setFormData] = useState({
     petId: petId || "",
-    type: "daily" as "daily" | "veterinary",
+    type: "daily" as "daily" | "veterinary" | "task",
     title: "",
     content: "",
     date: new Date().toISOString().split('T')[0],
+    dueDate: "",
+    frequency: "once" as "daily" | "weekly" | "monthly" | "yearly" | "once",
     vetName: "",
     vetClinic: "",
     medications: "",
@@ -175,13 +177,14 @@ export default function AddNoteModal({ isOpen, onClose, petId, familyId }: AddNo
 
               <div>
                 <Label htmlFor="type">Tipo de Nota *</Label>
-                <Select value={formData.type} onValueChange={(value: "daily" | "veterinary") => updateField("type", value)}>
+                <Select value={formData.type} onValueChange={(value: "daily" | "veterinary" | "task") => updateField("type", value)}>
                   <SelectTrigger data-testid="select-note-type">
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Nota Cotidiana</SelectItem>
                     <SelectItem value="veterinary">Nota Veterinaria</SelectItem>
+                    <SelectItem value="task">Tarea/Recordatorio</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -198,6 +201,37 @@ export default function AddNoteModal({ isOpen, onClose, petId, familyId }: AddNo
                 />
               </div>
             </div>
+
+            {/* Task-specific fields */}
+            {formData.type === 'task' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dueDate">Fecha de Cumplimiento</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => updateField("dueDate", e.target.value)}
+                    data-testid="input-task-due-date"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="frequency">Frecuencia</Label>
+                  <Select value={formData.frequency} onValueChange={(value: "daily" | "weekly" | "monthly" | "yearly" | "once") => updateField("frequency", value)}>
+                    <SelectTrigger data-testid="select-task-frequency">
+                      <SelectValue placeholder="Seleccionar frecuencia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="once">Una vez</SelectItem>
+                      <SelectItem value="daily">Diario</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="monthly">Mensual</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="title">Título *</Label>
