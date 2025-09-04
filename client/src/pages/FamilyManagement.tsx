@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -19,6 +20,7 @@ export default function FamilyManagement() {
   const [selectedFamily, setSelectedFamily] = useState<string>("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [joinFamilyCode, setJoinFamilyCode] = useState("");
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -129,6 +131,42 @@ export default function FamilyManagement() {
       toast({
         title: "Error",
         description: "No se pudo salir de la familia",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Join family mutation
+  const joinFamilyMutation = useMutation({
+    mutationFn: async (familyCode: string) => {
+      const response = await apiRequest("POST", "/api/families/join", {
+        familyCode: familyCode,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      setJoinFamilyCode("");
+      queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+      toast({
+        title: "Éxito",
+        description: "Te has unido a la familia correctamente",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized", 
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "No se pudo unir a la familia. Verifica el código.",
         variant: "destructive",
       });
     },
@@ -389,6 +427,64 @@ export default function FamilyManagement() {
                       <>
                         <i className="fas fa-envelope mr-2"></i>
                         Enviar Invitación
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Join Family by Code */}
+            <Card className="border-border shadow-sm">
+              <div className="p-6 border-b border-border">
+                <h3 className="text-lg font-semibold text-foreground">Unirse a una Familia</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Ingresa el código de invitación para unirte a otra familia
+                </p>
+              </div>
+              <CardContent className="p-6">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!joinFamilyCode.trim()) {
+                    toast({
+                      title: "Error",
+                      description: "Por favor ingresa un código de familia",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  joinFamilyMutation.mutate(joinFamilyCode);
+                }} className="space-y-4">
+                  <div>
+                    <Label htmlFor="join-family-code" className="text-sm font-medium text-muted-foreground">
+                      Código de Familia
+                    </Label>
+                    <Input
+                      id="join-family-code"
+                      type="text"
+                      placeholder="Ej: FAM-ABC123"
+                      value={joinFamilyCode}
+                      onChange={(e) => setJoinFamilyCode(e.target.value)}
+                      disabled={joinFamilyMutation.isPending}
+                      data-testid="input-join-family-code"
+                      className="mt-2"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={joinFamilyMutation.isPending}
+                    data-testid="button-join-family"
+                  >
+                    {joinFamilyMutation.isPending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Uniéndose...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-users mr-2"></i>
+                        Unirse a Familia
                       </>
                     )}
                   </Button>

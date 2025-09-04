@@ -62,6 +62,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName
       });
 
+      // Create default family for new user
+      const defaultFamilyName = `Familia de ${firstName}`;
+      const defaultFamily = await storage.createFamily({
+        name: defaultFamilyName,
+        description: "Mi familia de mascotas"
+      }, user.id);
+
       // Log user in by setting session
       req.session.userId = user.id;
       res.status(201).json({
@@ -281,8 +288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Prevent admin from leaving if there are other members
-      const familyMembers = await storage.getFamilyMembers(familyId);
-      if (membership.role === "admin" && familyMembers.length > 1) {
+      const familyWithMembers = await storage.getFamilyWithMembers(familyId);
+      if (membership.role === "admin" && familyWithMembers.members.length > 1) {
         return res.status(400).json({ error: "Admin cannot leave family with other members. Transfer admin role first." });
       }
       
@@ -317,6 +324,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating QR code:", error);
       res.status(500).json({ message: "Failed to generate QR code" });
+    }
+  });
+
+  // Join family by code
+  app.post("/api/families/join", hybridAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { familyCode } = req.body;
+      
+      if (!familyCode) {
+        return res.status(400).json({ error: "Family code is required" });
+      }
+      
+      // Find family by code (for now, using familyId as the code)
+      const family = await storage.getFamily(familyCode);
+      
+      if (!family) {
+        return res.status(404).json({ error: "Invalid family code" });
+      }
+      
+      // Check if user is already a member
+      const userFamilies = await storage.getUserFamilies(userId);
+      const existingMembership = userFamilies.find((m: any) => m.family.id === familyCode);
+      
+      if (existingMembership) {
+        return res.status(400).json({ error: "You are already a member of this family" });
+      }
+      
+      // Add user to family as a member
+      await storage.addFamilyMember(familyCode, userId, "member");
+      
+      res.status(200).json({ 
+        success: true, 
+        message: `Joined ${family.name} successfully` 
+      });
+    } catch (error) {
+      console.error("Error joining family:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 

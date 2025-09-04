@@ -57,13 +57,26 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
+  // Check if user exists to determine if this is a new user
+  const existingUser = await storage.getUser(claims["sub"]);
+  const isNewUser = !existingUser;
+
+  const user = await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+
+  // Create default family for new users
+  if (isNewUser) {
+    const defaultFamilyName = `Familia de ${claims["first_name"] || "Usuario"}`;
+    const defaultFamily = await storage.createFamily({
+      name: defaultFamilyName,
+      description: "Mi familia de mascotas"
+    }, claims["sub"]);
+  }
 }
 
 export async function setupAuth(app: Express) {
