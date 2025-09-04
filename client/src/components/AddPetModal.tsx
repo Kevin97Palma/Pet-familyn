@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { insertPetSchema } from "@shared/schema";
+import { ObjectUploader } from "./ObjectUploader";
+import type { UploadResult } from "@uppy/core";
 
 interface AddPetModalProps {
   isOpen: boolean;
@@ -36,6 +38,7 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
     allergies: "",
     medications: "",
     location: "",
+    profileImageUrl: "",
   });
 
   const createPetMutation = useMutation({
@@ -116,12 +119,38 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
       allergies: "",
       medications: "",
       location: "",
+      profileImageUrl: "",
     });
     onClose();
   };
 
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle image upload
+  const handleGetUploadParameters = async () => {
+    const response = await apiRequest("POST", "/api/objects/upload");
+    const data = await response.json();
+    return {
+      method: "PUT" as const,
+      url: data.uploadURL,
+    };
+  };
+
+  const handleImageUploadComplete = async (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+    if (result.successful.length > 0) {
+      const uploadedFile = result.successful[0];
+      const imageUrl = uploadedFile.uploadURL;
+      
+      // Update profile image URL in form data
+      updateField("profileImageUrl", imageUrl);
+      
+      toast({
+        title: "Éxito",
+        description: "Imagen subida correctamente",
+      });
+    }
   };
 
   return (
@@ -135,6 +164,36 @@ export default function AddPetModal({ isOpen, onClose, familyId }: AddPetModalPr
           {/* Basic Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-foreground">Información Básica</h3>
+            
+            {/* Profile Image Upload */}
+            <div className="space-y-2">
+              <Label>Foto de Perfil</Label>
+              <div className="flex items-center space-x-4">
+                {formData.profileImageUrl && (
+                  <img 
+                    src={formData.profileImageUrl} 
+                    alt="Vista previa" 
+                    className="w-16 h-16 rounded-full object-cover border-2 border-primary"
+                  />
+                )}
+                <ObjectUploader
+                  maxNumberOfFiles={1}
+                  maxFileSize={5 * 1024 * 1024} // 5MB
+                  onGetUploadParameters={handleGetUploadParameters}
+                  onComplete={handleImageUploadComplete}
+                >
+                  <div className="flex items-center gap-2">
+                    <i className="fas fa-camera"></i>
+                    <span>Subir Foto</span>
+                  </div>
+                </ObjectUploader>
+              </div>
+              {formData.profileImageUrl && (
+                <p className="text-xs text-muted-foreground">
+                  Imagen seleccionada correctamente
+                </p>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
