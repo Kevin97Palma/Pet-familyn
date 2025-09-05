@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, hybridAuth } from "./auth";
 import { 
   ObjectStorageService,
   ObjectNotFoundError,
@@ -22,7 +22,7 @@ const scryptAsync = promisify(scrypt);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
-  await setupAuth(app);
+  setupAuth(app);
 
   // Utility functions for password hashing
   async function hashPassword(password: string) {
@@ -70,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, user.id);
 
       // Log user in by setting session
-      req.session.userId = user.id;
+      (req.session as any).userId = user.id;
       res.status(201).json({
         id: user.id,
         email: user.email,
@@ -81,6 +81,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).send("Error al crear la cuenta");
+    }
+  });
+
+  // Local login route
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).send("Email y contraseña son requeridos");
+      }
+
+      // Get user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password) {
+        return res.status(401).send("Credenciales inválidas");
+      }
+
+      // Check password
+      const isValidPassword = await comparePasswords(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).send("Credenciales inválidas");
+      }
+
+      // Log user in by setting session
+      (req.session as any).userId = user.id;
+      res.status(200).json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).send("Error al iniciar sesión");
+    }
+  });
+
+  // Logout route
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).send("Error al cerrar sesión");
+      }
+      res.clearCookie('connect.sid');
+      res.status(200).json({ message: "Sesión cerrada correctamente" });
+    });
+  });
+
+  // Get current user route
+  app.get('/api/auth/user', isAuthenticated, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.userId!);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl
+      });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
